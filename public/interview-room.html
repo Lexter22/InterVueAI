@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI Interview Room - IntervueAI</title>
+  <link rel="stylesheet" href="styles.css" />
+
+</head>
+<body>
+  <header class="nav">
+    <div class="nav-inner">
+      <div class="nav-left">
+        <div class="logo-badge">A</div>
+        <div>
+          <div class="nav-title">IntervueAI</div>
+          <div class="nav-sub">Live AI Interview Room</div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="shell interview-shell">
+    <div class="interview-layout">
+      
+      <!-- LEFT -->
+      <div class="interview-left">
+        <div class="video-container">
+          <video id="localVideo" autoplay playsinline muted></video>
+          <div class="ai-avatar" id="aiAvatar">
+            <svg width="110" height="110" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="1.8">
+              <circle cx="12" cy="8" r="5"/>
+              <path d="M3 21c0-5 5-9 9-9s9 4 9 9"/>
+            </svg>
+            <p class="ai-avatar-text">AI Interviewer (Agora RTC)</p>
+            <span>Video stream active</span>
+          </div>
+        </div>
+
+        <div class="card transcript-card">
+          <h3 class="transcript-title">Live Transcript</h3>
+          <div id="transcript" class="transcript-box">
+            <div class="msg ai msg-initial"><em>Click "Start Interview" to begin...</em></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT -->
+      <div class="interview-right">
+        <div class="media-panel">
+          <h3>Media Devices</h3>
+          <div class="media-group">
+            <label class="media-label">Microphone</label>
+            <select id="micSelect"></select>
+          </div>
+          <div>
+            <label class="media-label">Camera</label>
+            <select id="camSelect"></select>
+          </div>
+        </div>
+
+        <div class="card status-card">
+          <h3>Interview Status</h3>
+          <div class="status-info">
+            <p><span class="status-dot"></span> Connected to AI</p>
+            <p><span class="status-dot"></span> Listening...</p>
+            <p class="status-time">
+              <strong>Time elapsed:</strong> <span id="timer">00:00</span>
+            </p>
+          </div>
+        </div>
+
+        <div class="interview-actions">
+          <button class="btn btn-primary interview-btn" id="startBtn">
+            Start Interview
+          </button>
+          <button class="btn btn-primary interview-btn" id="endBtn" style="display:none;">
+            End Interview & View Results
+          </button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const localVideo = document.getElementById("localVideo");
+    const aiAvatar = document.getElementById("aiAvatar");
+    const transcript = document.getElementById("transcript");
+    const timerEl = document.getElementById("timer");
+    const startBtn = document.getElementById("startBtn");
+    const endBtn = document.getElementById("endBtn");
+    const micSelect = document.getElementById("micSelect");
+    const camSelect = document.getElementById("camSelect");
+
+    let stream;
+    let seconds = 0;
+    let timer;
+
+    const addMsg = (speaker, text) => {
+      const div = document.createElement("div");
+      div.className = `msg ${speaker === "You" ? "you" : "ai"}`;
+      div.innerHTML = `<strong>${speaker}:</strong> ${text}`;
+      transcript.appendChild(div);
+      transcript.scrollTop = transcript.scrollHeight;
+    };
+
+    async function loadDevices() {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoInputs = devices.filter(d => d.kind === "videoinput");
+        const audioInputs = devices.filter(d => d.kind === "audioinput");
+
+        videoInputs.forEach((d, i) => {
+          const opt = new Option(d.label || `Camera ${i+1}`, d.deviceId);
+          camSelect.add(opt);
+        });
+        audioInputs.forEach((d, i) => {
+          const opt = new Option(d.label || `Microphone ${i+1}`, d.deviceId);
+          micSelect.add(opt);
+        });
+      } catch (e) { console.log(e); }
+    }
+
+    async function startMedia() {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { deviceId: camSelect.value ? { exact: camSelect.value } : undefined },
+          audio: { deviceId: micSelect.value ? { exact: micSelect.value } : undefined }
+        });
+        localVideo.srcObject = stream;
+        await loadDevices();
+      } catch (err) {
+        alert("Please allow camera & microphone access.\nError: " + err.message);
+      }
+    }
+
+    startBtn.onclick = () => {
+      aiAvatar.classList.add("active");
+      startBtn.style.display = "none";
+      endBtn.style.display = "block";
+
+      timer = setInterval(() => {
+        seconds++;
+        const m = String(Math.floor(seconds / 60)).padStart(2, "0");
+        const s = String(seconds % 60).padStart(2, "0");
+        timerEl.textContent = `${m}:${s}`;
+      }, 1000);
+
+      transcript.innerHTML = "";
+      addMsg("AI", "Hello! Thank you for applying. Let's begin.");
+      addMsg("AI", "Can you please describe your most recent role and key responsibilities?");
+
+      setTimeout(() => addMsg("You", "I have been working as a backend developer for 6 years..."), 6000);
+      setTimeout(() => addMsg("AI", "Great! Do you have experience with cloud platforms?"), 12000);
+      setTimeout(() => addMsg("You", "Yes, I have strong experience with AWS and Azure."), 18000);
+      setTimeout(() => addMsg("AI", "Excellent. We're wrapping up now."), 24000);
+    };
+
+    endBtn.onclick = () => {
+      clearInterval(timer);
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      window.location.href = "interview-summary.html";
+    };
+
+    // Start camera/mic on load
+    startMedia();
+  </script>
+</body>
+</html>

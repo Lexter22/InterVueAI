@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>IntervueAI - HR Dashboard</title>
+  <link rel="stylesheet" href="styles.css" />
+
+</head>
+<body>
+  <header class="nav">
+    <div class="nav-inner">
+      <div class="nav-left">
+        <div class="logo-badge">A</div>
+        <div>
+          <div class="nav-title">IntervueAI</div>
+          <div class="nav-sub">HR Panel · Real-time AI Screening Results</div>
+        </div>
+      </div>
+      <button class="btn btn-ghost" onclick="window.location.href='index.html'">Back to Applicant View</button>
+    </div>
+  </header>
+
+  <main class="shell">
+    <div class="hr-layout">
+      <aside class="hr-sidebar">
+        <h3>HR Control Panel</h3>
+        <p class="helper">Review AI-screened applicants and manage interviews.</p>
+        <div class="hr-menu">
+          <div class="hr-menu-item active">Dashboard</div>
+          <div class="hr-menu-item">Jobs handled <span>3</span></div>
+          <div class="hr-menu-item">AI interviews <span class="live-status">Live</span></div>
+        </div>
+      </aside>
+
+      <section class="hr-main">
+        <div class="hr-main-header">
+          <div>
+            <div class="card-title">Applicants Overview</div>
+            <div class="card-subtitle">Synced via Agora RTM in real-time</div>
+          </div>
+          <div class="filters">
+            <select id="filterJob">
+              <option value="">All jobs</option>
+            </select>
+            <select id="filterStatus">
+              <option value="">All statuses</option>
+              <option>Passed AI</option>
+              <option>AI Pending</option>
+              <option>Failed AI</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th><th>Name</th><th>Job</th><th>AI Score</th><th>Status</th><th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="applicantTable">
+              <!-- Applicants will be loaded dynamically -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- JOB MANAGEMENT PANEL -->
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">Manage Job Listings</div>
+    <div class="card-subtitle">Add, edit, delete, or search job postings</div>
+  </div>
+
+  <!-- SEARCH JOBS -->
+  <div class="search-box">
+    <input 
+      type="text" 
+      class="search-input" 
+      placeholder="Search jobs by title, department, or tags..."
+    />
+    <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="11" cy="11" r="8"/>
+      <path d="m21 21-4.35-4.35"/>
+    </svg>
+  </div>
+
+  <!-- JOB MANAGEMENT ACTIONS -->
+  <div class="job-actions">
+    <button class="btn btn-primary" id="addJobBtn">+ Add Job</button>
+  </div>
+
+  <!-- JOB MANAGEMENT TABLE -->
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Job Title</th>
+          <th>Requirements</th>
+          <th>Status</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Jobs will be loaded dynamically -->
+      </tbody>
+    </table>
+  </div>
+</div>
+
+      </section>
+    </div>
+  </main>
+
+  <div id="modalBackdrop" class="modal-backdrop"></div>
+
+  <script src="hr-dashboard.js"></script>
+  <script>
+    // Filter functionality will be handled by hr-dashboard.js
+
+    // All functionality moved to hr-dashboard.js
+  </script>
+</body>
+</html>
