@@ -2,12 +2,100 @@ require("dotenv").config();
 const express = require("express");
 const { v4: uuidv4 } = require("uuid");
 const db = require("./db");
+const cors = require('cors');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+app.use(cors());
 app.use(express.json());
 app.use(express.static("public"));
+
+// Config endpoint for Agora AI client
+app.get('/config', (req, res) => {
+  res.json({
+    AGORA_APPID: process.env.AGORA_APPID,
+    AGORA_TOKEN: process.env.AGORA_TOKEN,
+    GROQ_KEY: process.env.GROQ_KEY,
+    TTS_MINIMAX_KEY: process.env.TTS_MINIMAX_KEY,
+    TTS_MINIMAX_GROUPID: process.env.TTS_MINIMAX_GROUPID,
+    AVATAR_AKOOL_KEY: process.env.AVATAR_AKOOL_KEY
+  });
+});
+
+// Proxy for Agora Conversational AI API
+app.post('/api/convo-ai/start', async (req, res) => {
+  try {
+    const appid = process.env.AGORA_APPID;
+    const apiKey = process.env.AGORA_REST_KEY;
+    const apiSecret = process.env.AGORA_REST_SECRET;
+    
+    if (!appid || !apiKey || !apiSecret) {
+      return res.status(500).json({ error: 'Server misconfigured: missing Agora credentials' });
+    }
+
+    const url = `https://api.agora.io/api/conversational-ai-agent/v2/projects/${appid}/join`;
+    const basic = Buffer.from(`${apiKey}:${apiSecret}`).toString('base64');
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${basic}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(req.body)
+    });
+
+    const data = await response.text();
+    const status = response.status;
+
+    try {
+      return res.status(status).json(JSON.parse(data));
+    } catch (e) {
+      return res.status(status).send(data);
+    }
+  } catch (error) {
+    console.error('Convo AI start error:', error);
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+// Stop Agora Conversational AI
+app.post('/api/convo-ai/agents/:agentId/leave', async (req, res) => {
+  try {
+    const { agentId } = req.params;
+    const appid = process.env.AGORA_APPID;
+    const apiKey = process.env.AGORA_REST_KEY;
+    const apiSecret = process.env.AGORA_REST_SECRET;
+    
+    if (!appid || !apiKey || !apiSecret) {
+      return res.status(500).json({ error: 'Server misconfigured: missing Agora credentials' });
+    }
+
+    const url = `https://api.agora.io/api/conversational-ai-agent/v2/projects/${appid}/agents/${agentId}/leave`;
+    const basic = Buffer.from(`${apiKey}:${apiSecret}`).toString('base64');
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${basic}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const data = await response.text();
+    const status = response.status;
+    
+    try {
+      return res.status(status).json(JSON.parse(data));
+    } catch (e) {
+      return res.status(status).send(data);
+    }
+  } catch (error) {
+    console.error('Convo AI stop error:', error);
+    res.status(500).json({ error: String(error) });
+  }
+});
 
 // POST /api/application/start
 app.post("/api/application/start", async (req, res) => {
