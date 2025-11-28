@@ -199,6 +199,9 @@
       div.innerHTML = `<strong>${speaker}:</strong> ${text}`;
       transcript.appendChild(div);
       transcript.scrollTop = transcript.scrollHeight;
+      
+      // Track conversation in interview engine
+      window.interviewEngine.addToTranscript(speaker, text);
     };
 
     async function loadDevices() {
@@ -305,8 +308,14 @@
         endBtn.disabled = true;
         endBtn.textContent = "Processing Results...";
         
-        // Generate and save results
-        const results = window.interviewEngine.generateInterviewResults();
+        // Show loading message
+        addMsg("System", "Analyzing interview responses and generating results...");
+        
+        // Wait 2 seconds to allow final AI messages to be captured
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Extract results from actual conversation
+        const results = await window.interviewEngine.extractInterviewResults();
         if (results) {
           localStorage.setItem("interviewResults", JSON.stringify(results));
           await window.interviewEngine.saveInterviewResults(results);

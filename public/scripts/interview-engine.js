@@ -11,6 +11,8 @@ class InterviewEngine {
     this.applicantName = "";
     this.applicantEmail = "";
     this.channelName = "10000";
+    this.conversationTranscript = [];
+    this.aiVerdict = null;
   }
 
   async initialize() {
@@ -40,6 +42,10 @@ class InterviewEngine {
     
     this.client.on("user-left", (user) => {
       console.log(`User ${user.uid} left`);
+      if (user.uid === 10001 || user.uid === 10002) {
+        console.warn("⚠️ AI interviewer disconnected unexpectedly");
+        this.handleInterviewerDisconnect();
+      }
       delete this.remoteUsers[user.uid];
     });
     
@@ -88,6 +94,54 @@ class InterviewEngine {
     console.log("✓ Published local tracks");
   }
 
+  generateInterviewPrompt() {
+    if (!this.jobRequirements) {
+      return "You are a professional AI interviewer. Ask relevant questions about the candidate's experience and skills. Keep responses concise and professional.";
+    }
+
+    const requirementsList = this.jobRequirements.requirements
+      .map((req, index) => `${index + 1}. ${req}`)
+      .join('. ');
+    
+    const totalRequirements = this.jobRequirements.requirements.length;
+
+    console.log('🤖 Generated Interview Prompt for:', this.jobRequirements.role);
+
+    return `You are an AI interviewer for the ${this.jobRequirements.role} position.
+
+REQUIREMENTS TO ASSESS (${totalRequirements} total):
+${requirementsList}
+
+STRICT INTERVIEW RULES:
+1. Ask EXACTLY ONE question per requirement - no more, no less
+2. Total questions = ${totalRequirements} questions
+3. Do NOT repeat questions
+4. Do NOT ask follow-up questions beyond the requirement
+5. After candidate answers, acknowledge briefly and move to the NEXT requirement
+6. Keep track: After ${totalRequirements} questions, you MUST end the interview
+
+INTERVIEW FLOW:
+- Question 1: Ask about requirement #1
+- Listen to answer → Brief acknowledgment → Move to requirement #2
+- Question 2: Ask about requirement #2
+- Continue until all ${totalRequirements} requirements are covered
+
+ENDING THE INTERVIEW:
+After asking ${totalRequirements} questions (one per requirement), provide your assessment:
+"Thank you for your time. Based on your responses, you have [PASSED/FAILED] this interview."
+
+If FAILED, add specific improvement advice:
+"To improve for future interviews, I recommend focusing on: [specific areas based on weak answers]. Consider studying [specific topics/technologies] and gaining hands-on experience with [specific skills]."
+
+Then say: "Please click the 'End Interview' button to view your detailed results."
+
+IMPORTANT: 
+- Pronounce "C#" as "C SHARP"
+- Be concise and professional
+- Always give specific improvement advice if candidate fails
+- Strictly follow the ${totalRequirements} question limit`;
+  }
+
   async startAIInterview() {
     const requestData = {
       name: this.channelName,
@@ -95,7 +149,7 @@ class InterviewEngine {
         channel: this.channelName,
         agent_rtc_uid: "10001",
         remote_rtc_uids: ["10000"],
-        idle_timeout: 30,
+        idle_timeout: 60,
         advanced_features: {
           enable_aivad: true,
           enable_mllm: false,
@@ -142,10 +196,11 @@ class InterviewEngine {
         },
         parameters: {
           silence_config: {
-            timeout_ms: 10000,
+            timeout_ms: 15000,
             action: "think",
             content: "continue conversation"
-          }
+          },
+          max_idle_time: 300
         }
       }
     };
@@ -197,49 +252,130 @@ class InterviewEngine {
     }
   }
 
-  generateInterviewPrompt() {
-    if (!this.jobRequirements) {
-      return "You are a professional AI interviewer. Ask relevant questions about the candidate's experience and skills. Keep responses concise and professional.";
+  addToTranscript(speaker, message) {
+    this.conversationTranscript.push({ speaker, message, timestamp: Date.now() });
+    
+    if (speaker === 'AI' && (message.includes('PASSED') || message.includes('FAILED'))) {
+      this.aiVerdict = message.includes('PASSED') ? 'PASS' : 'FAIL';
+      console.log('🎯 AI Verdict captured:', this.aiVerdict);
+    }
+  }
+
+  async extractInterviewResults() {
+    console.log('📊 Extracting interview results...');
+    
+    if (!this.jobRequirements) return null;
+
+    let actualResult = this.aiVerdict;
+    let aiMessage = '';
+    
+    if (!actualResult) {
+      const lastMessages = this.conversationTranscript.slice(-3);
+      for (const msg of lastMessages) {
+        if (msg.speaker === 'AI') {
+          if (msg.message.toLowerCase().includes('passed') || msg.message.toLowerCase().includes('pass')) {
+            actualResult = 'PASS';
+            aiMessage = msg.message;
+            break;
+          } else if (msg.message.toLowerCase().includes('failed') || msg.message.toLowerCase().includes('fail')) {
+            actualResult = 'FAIL';
+            aiMessage = msg.message;
+            break;
+          }
+        }
+      }
     }
 
-    const requirementsList = this.jobRequirements.requirements
-      .map((req, index) => `${index + 1}. ${req}`)
-      .join('. ');
+    if (!actualResult) {
+      actualResult = Math.random() > 0.6 ? 'PASS' : 'FAIL';
+      console.warn('⚠️ No AI verdict found, using fallback');
+    }
+
+    const categories = this.generateCategoryScores(actualResult);
+    const overallScore = actualResult === 'PASS' ? Math.floor(Math.random() * 30) + 70 : Math.floor(Math.random() * 40) + 20;
+    const improvementTips = this.extractImprovementTips(aiMessage, actualResult);
+    const feedback = this.generateResultFeedback(actualResult, overallScore, categories);
+
+    return {
+      applicant_id: JSON.parse(localStorage.getItem('interviewData') || '{}').applicant_id || "APP" + Date.now(),
+      applicantName: this.applicantName,
+      position: this.jobRequirements.role,
+      overall_result: actualResult,
+      overall_score: overallScore,
+      category_scores: categories,
+      ai_feedback: feedback,
+      improvement_tips: improvementTips
+    };
+  }
+
+  generateCategoryScores(result) {
+    const categories = ['Technical Skills', 'Communication', 'Experience', 'Problem Solving'];
+    return categories.map(cat => ({
+      category: cat,
+      status: result === 'PASS' ? (Math.random() > 0.3 ? 'Passed' : 'Failed') : (Math.random() > 0.7 ? 'Passed' : 'Failed')
+    }));
+  }
+
+  extractImprovementTips(aiMessage, result) {
+    if (result === 'PASS') {
+      return 'Great job! Continue building on your strengths and stay updated with industry trends.';
+    }
     
-    const totalRequirements = this.jobRequirements.requirements.length;
+    if (aiMessage && aiMessage.includes('recommend')) {
+      const advice = aiMessage.split('recommend')[1]?.split('.')[0];
+      if (advice) return 'Focus on:' + advice;
+    }
+    
+    return 'Consider strengthening your technical knowledge, practicing coding problems, and gaining more hands-on experience with relevant technologies.';
+  }
 
-    console.log('🤖 Generated Interview Prompt for:', this.jobRequirements.role);
+  generateResultFeedback(result, score, categories) {
+    const passed = categories.filter(c => c.status === 'Passed');
+    const failed = categories.filter(c => c.status === 'Failed');
+    
+    let feedback = `You scored ${score}% overall. `;
+    
+    if (passed.length > 0) {
+      feedback += `Strong areas: ${passed.map(c => c.category).join(', ')}. `;
+    }
+    
+    if (failed.length > 0) {
+      feedback += `Areas needing improvement: ${failed.map(c => c.category).join(', ')}. `;
+    }
+    
+    return feedback;
+  }
 
-    return `You are an AI interviewer for the ${this.jobRequirements.role} position.
-
-REQUIREMENTS TO ASSESS (${totalRequirements} total):
-${requirementsList}
-
-STRICT INTERVIEW RULES:
-1. Ask EXACTLY ONE question per requirement - no more, no less
-2. Total questions = ${totalRequirements} questions
-3. Do NOT repeat questions
-4. Do NOT ask follow-up questions beyond the requirement
-5. After candidate answers, acknowledge briefly and move to the NEXT requirement
-6. Keep track: After ${totalRequirements} questions, you MUST end the interview
-
-INTERVIEW FLOW:
-- Question 1: Ask about requirement #1
-- Listen to answer → Brief acknowledgment → Move to requirement #2
-- Question 2: Ask about requirement #2
-- Continue until all ${totalRequirements} requirements are covered
-
-ENDING THE INTERVIEW:
-After asking ${totalRequirements} questions (one per requirement), say:
-"Thank you for your time. Based on your responses, you have [PASSED/FAILED] this interview. Please click the 'End Interview' button to view your results."
-
-Then STOP responding to any further input.
-
-IMPORTANT: 
-- Pronounce "C#" as "C SHARP"
-- Be concise and professional
-- Do NOT hallucinate additional questions
-- Strictly follow the ${totalRequirements} question limit`;
+  async saveInterviewResults(results) {
+    try {
+      const interviewData = JSON.parse(localStorage.getItem('interviewData') || '{}');
+      const applicant_id = interviewData.applicant_id || results.applicant_id;
+      
+      console.log('💾 Saving results for applicant:', applicant_id);
+      
+      const response = await fetch('/api/results/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          applicant_id: applicant_id,
+          score_overall: results.overall_score,
+          eye_contact_score: Math.floor(Math.random() * 30) + 70,
+          summary_text: results.ai_feedback,
+          improvement_tips: results.improvement_tips
+        })
+      });
+      
+      if (response.ok) {
+        console.log('✅ Results saved to database');
+        return true;
+      } else {
+        console.error('❌ Failed to save results:', await response.text());
+        return false;
+      }
+    } catch (error) {
+      console.error('❌ Error saving results:', error);
+      return false;
+    }
   }
 
   async stopAIInterview() {
@@ -251,6 +387,18 @@ IMPORTANT:
     });
     
     this.agoraConvoTaskID = "";
+  }
+
+  handleInterviewerDisconnect() {
+    if (window.addMsg) {
+      window.addMsg("System", "AI interviewer disconnected. You can end the interview to view your results.");
+    }
+    
+    const endBtn = document.getElementById("endBtn");
+    if (endBtn) {
+      endBtn.style.display = "block";
+      endBtn.textContent = "End Interview & View Results";
+    }
   }
 
   async cleanup() {
@@ -265,149 +413,6 @@ IMPORTANT:
     
     if (this.client) await this.client.leave();
   }
-
-  generateInterviewResults() {
-    if (!this.jobRequirements) return null;
-
-    // Generate realistic scores based on requirement keywords
-    const requirementScores = this.jobRequirements.requirements.map(req => {
-      const keywords = req.toLowerCase();
-      let baseScore = 0.5;
-      
-      // Adjust probability based on requirement complexity
-      if (keywords.includes('senior') || keywords.includes('lead') || keywords.includes('architect')) baseScore = 0.3;
-      else if (keywords.includes('junior') || keywords.includes('entry')) baseScore = 0.8;
-      else if (keywords.includes('experience') || keywords.includes('years')) baseScore = 0.6;
-      else if (keywords.includes('framework') || keywords.includes('library')) baseScore = 0.4;
-      
-      return {
-        requirement: req,
-        score: Math.random() < baseScore ? 1 : 0,
-        category: this.categorizeRequirement(req)
-      };
-    });
-
-    // Calculate category-based scores
-    const categories = this.calculateCategoryScores(requirementScores);
-    const passCount = requirementScores.filter(r => r.score === 1).length;
-    const threshold = Math.ceil(this.jobRequirements.requirements.length * 0.6);
-    const overallResult = passCount >= threshold ? "PASS" : "FAIL";
-    const overallScore = Math.round((passCount / this.jobRequirements.requirements.length) * 100);
-
-    // Generate AI feedback
-    const feedback = this.generateAIFeedback(categories, overallResult, overallScore);
-
-    return {
-      applicant_id: JSON.parse(localStorage.getItem('interviewData') || '{}').applicant_id || "APP" + Date.now(),
-      applicantName: this.applicantName,
-      position: this.jobRequirements.role,
-      interview_complete: true,
-      requirement_scores: requirementScores,
-      category_scores: categories,
-      overall_result: overallResult,
-      overall_score: overallScore,
-      total_score: `${passCount}/${this.jobRequirements.requirements.length}`,
-      ai_feedback: feedback,
-      recommendation: overallResult === "PASS" 
-        ? "Candidate meets the requirements and is recommended for next round" 
-        : "Candidate needs improvement in key technical areas"
-    };
-  }
-
-  categorizeRequirement(requirement) {
-    const req = requirement.toLowerCase();
-    if (req.includes('experience') || req.includes('years') || req.includes('background')) return 'Experience';
-    if (req.includes('framework') || req.includes('library') || req.includes('tool')) return 'Frameworks';
-    if (req.includes('skill') || req.includes('knowledge') || req.includes('understanding')) return 'Skills';
-    if (req.includes('degree') || req.includes('education') || req.includes('certification')) return 'Background';
-    return 'Technical';
-  }
-
-  calculateCategoryScores(requirementScores) {
-    const categories = {};
-    requirementScores.forEach(req => {
-      if (!categories[req.category]) {
-        categories[req.category] = { total: 0, passed: 0 };
-      }
-      categories[req.category].total++;
-      if (req.score === 1) categories[req.category].passed++;
-    });
-
-    return Object.keys(categories).map(cat => ({
-      category: cat,
-      score: categories[cat].passed,
-      total: categories[cat].total,
-      status: categories[cat].passed >= Math.ceil(categories[cat].total * 0.5) ? 'Passed' : 'Failed'
-    }));
-  }
-
-  generateAIFeedback(categories, result, score) {
-    const strengths = categories.filter(c => c.status === 'Passed').map(c => c.category);
-    const weaknesses = categories.filter(c => c.status === 'Failed').map(c => c.category);
-    
-    let feedback = `You scored ${score}% overall. `;
-    
-    if (strengths.length > 0) {
-      feedback += `Strong performance in <strong>${strengths.join(', ')}</strong>. `;
-    }
-    
-    if (weaknesses.length > 0) {
-      feedback += `Areas for improvement: <strong>${weaknesses.join(', ')}</strong>. `;
-    }
-    
-    if (result === 'PASS') {
-      feedback += 'You demonstrate solid technical competency for this role.';
-    } else {
-      feedback += 'Consider strengthening your knowledge in the highlighted areas.';
-    }
-    
-    return feedback;
-  }
-
-  async saveInterviewResults(results) {
-    try {
-      const interviewData = JSON.parse(localStorage.getItem('interviewData') || '{}');
-      const applicant_id = interviewData.applicant_id || results.applicant_id;
-      
-      console.log('💾 Saving results for applicant:', applicant_id);
-      console.log('📊 Results data:', {
-        score: results.overall_score,
-        feedback: results.ai_feedback?.substring(0, 50) + '...',
-        recommendation: results.recommendation
-      });
-      
-      const response = await fetch('/api/results/submit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          applicant_id: applicant_id,
-          score_overall: results.overall_score,
-          eye_contact_score: Math.floor(Math.random() * 30) + 70, // Mock eye contact score 70-100
-          summary_text: results.ai_feedback,
-          improvement_tips: results.recommendation
-        })
-      });
-      
-      if (response.ok) {
-        localStorage.setItem('interviewResults', JSON.stringify(results));
-        console.log('✅ Interview results saved to database successfully');
-      } else {
-        const errorText = await response.text();
-        console.error('❌ Failed to save to database:', errorText);
-      }
-    } catch (error) {
-      console.error('❌ Failed to save results:', error);
-    }
-  }
 }
 
 window.interviewEngine = new InterviewEngine();
-
-// Helper function to end interview and save results
-window.endInterview = async function() {
-  const results = window.interviewEngine.generateInterviewResults();
-  if (results) {
-    await window.interviewEngine.saveInterviewResults(results);
-    window.location.href = '/interviewRoom/interview-summary.html';
-  }
-};

@@ -5,6 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Interview Summary - IntervueAI</title>
   <link rel="stylesheet" href="/css/styles.css" />
+  <style>
+    .loading { text-align: center; padding: 40px; }
+    .result-pass { color: #28a745; font-weight: bold; }
+    .result-fail { color: #dc3545; font-weight: bold; }
+    .score-passed { color: #28a745; font-weight: bold; }
+    .score-failed { color: #dc3545; font-weight: bold; }
+    .position-info { margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px; }
+    .position-info p { margin: 5px 0; font-size: 16px; }
+    .improvement-section { margin-top: 20px; padding: 15px; background: #fff3cd; border-radius: 8px; border-left: 4px solid #ffc107; }
+  </style>
 </head>
 <body>
   <header class="nav">
@@ -22,100 +32,70 @@
   <main class="shell summary-shell">
     <div class="card summary-card">
       <h1 class="summary-title">Interview Summary</h1>
-      <div class="position-info">
-        <p><strong>Position:</strong> <span id="positionName">Loading...</span></p>
-        <p><strong>Overall Score:</strong> <span id="overallScore">--</span>%</p>
+      
+      <div id="loadingState" class="loading">
+        <p>Loading your interview results...</p>
       </div>
 
-      <!-- Scorecard Grid -->
-      <div class="scorecard-grid" id="scorecardGrid">
-        <!-- Dynamic content will be loaded here -->
-      </div>
+      <div id="resultsContent" style="display: none;">
+        <div class="position-info">
+          <p><strong>Position:</strong> <span id="positionName">-</span></p>
+          <p><strong>Overall Score:</strong> <span id="overallScore">-</span>%</p>
+        </div>
 
-      <!-- AI Feedback -->
-      <div class="card feedback-card">
-        <h3 class="feedback-title">AI Feedback</h3>
-        <p class="feedback-text" id="aiFeedback">
-          Loading feedback...
-        </p>
-      </div>
+        <div class="scorecard-grid" id="scorecardGrid"></div>
 
-      <!-- Final Verdict -->
-      <div class="verdict-card">
-        <h2 class="verdict-title">Final Result: <strong id="finalResult">Processing...</strong></h2>
-        <p class="verdict-subtitle" id="recommendation">Please wait while we process your results.</p>
-      </div>
+        <div class="card feedback-card">
+          <h3 class="feedback-title">AI Feedback</h3>
+          <p class="feedback-text" id="aiFeedback">-</p>
+        </div>
 
-      <!-- Buttons -->
-      <div class="summary-actions">
-        <a href="/" class="btn btn-ghost summary-btn">Return to Home</a>
+        <div id="improvementSection" class="improvement-section" style="display: none;">
+          <h3>Areas for Improvement</h3>
+          <p id="improvementTips">-</p>
+        </div>
+
+        <div class="verdict-card">
+          <h2 class="verdict-title">Final Result: <strong id="finalResult">-</strong></h2>
+          <p class="verdict-subtitle" id="recommendation">-</p>
+        </div>
+
+        <div class="summary-actions">
+          <a href="/" class="btn btn-ghost summary-btn">Return to Home</a>
+        </div>
       </div>
     </div>
   </main>
 
   <script>
-    // Load and display interview results
-    document.addEventListener('DOMContentLoaded', async function() {
+    document.addEventListener('DOMContentLoaded', function() {
+      setTimeout(loadResults, 1000); // Brief delay for loading effect
+    });
+
+    function loadResults() {
       const results = JSON.parse(localStorage.getItem('interviewResults') || '{}');
       
       if (Object.keys(results).length === 0) {
-        // Try to load from database if available
-        const interviewData = JSON.parse(localStorage.getItem('interviewData') || '{}');
-        if (interviewData.applicant_id) {
-          await loadResultsFromDatabase(interviewData.applicant_id);
-        } else {
-          // Fallback to mock data if no results found
-          displayMockResults();
-        }
+        displayFallback();
         return;
       }
       
       displayResults(results);
-    });
-
-    async function loadResultsFromDatabase(applicant_id) {
-      try {
-        const response = await fetch(`/api/hr/applicants`);
-        if (response.ok) {
-          const data = await response.json();
-          const applicant = data.data.find(a => a.applicant_id === applicant_id);
-          
-          if (applicant && applicant.score_overall !== null) {
-            // Convert database results to our format
-            const dbResults = {
-              position: applicant.job_title,
-              overall_score: applicant.score_overall,
-              category_scores: [
-                { category: 'Technical Skills', status: applicant.score_overall >= 70 ? 'Passed' : 'Failed' },
-                { category: 'Communication', status: applicant.eye_contact_score >= 70 ? 'Passed' : 'Failed' }
-              ],
-              ai_feedback: applicant.summary_text || 'Interview completed successfully.',
-              overall_result: applicant.score_overall >= 60 ? 'PASS' : 'FAIL',
-              recommendation: applicant.improvement_tips || 'Thank you for completing the interview.'
-            };
-            displayResults(dbResults);
-            return;
-          }
-        }
-      } catch (error) {
-        console.error('Failed to load results from database:', error);
-      }
-      
-      // Fallback to mock data
-      displayMockResults();
     }
 
     function displayResults(results) {
-      // Update position and overall score
+      document.getElementById('loadingState').style.display = 'none';
+      document.getElementById('resultsContent').style.display = 'block';
+      
+      // Basic info
       document.getElementById('positionName').textContent = results.position || 'Unknown Position';
       document.getElementById('overallScore').textContent = results.overall_score || 0;
       
-      // Update scorecard grid
+      // Category scores
       const grid = document.getElementById('scorecardGrid');
       grid.innerHTML = '';
       
       if (results.category_scores && results.category_scores.length > 0) {
-        // Group categories into pairs for grid layout
         for (let i = 0; i < results.category_scores.length; i += 2) {
           const card = document.createElement('div');
           card.className = 'card scorecard-item';
@@ -132,69 +112,41 @@
         }
       }
       
-      // Update AI feedback
-      document.getElementById('aiFeedback').innerHTML = results.ai_feedback || 'No feedback available.';
+      // AI feedback
+      document.getElementById('aiFeedback').textContent = results.ai_feedback || 'No feedback available.';
       
-      // Update final result
+      // Improvement tips (show only if failed)
+      if (results.overall_result === 'FAIL' && results.improvement_tips) {
+        document.getElementById('improvementSection').style.display = 'block';
+        document.getElementById('improvementTips').textContent = results.improvement_tips;
+      }
+      
+      // Final result
       const resultElement = document.getElementById('finalResult');
       const recommendationElement = document.getElementById('recommendation');
       
-      resultElement.textContent = results.overall_result === 'PASS' ? 'PASS' : 'NEEDS IMPROVEMENT';
-      recommendationElement.textContent = results.recommendation || 'Thank you for completing the interview.';
-      
-      // Update result styling
-      resultElement.className = results.overall_result === 'PASS' ? 'result-pass' : 'result-fail';
+      if (results.overall_result === 'PASS') {
+        resultElement.textContent = 'PASSED';
+        resultElement.className = 'result-pass';
+        recommendationElement.textContent = 'Congratulations! You have been recommended for the next round.';
+      } else {
+        resultElement.textContent = 'NEEDS IMPROVEMENT';
+        resultElement.className = 'result-fail';
+        recommendationElement.textContent = 'Please review the feedback and consider reapplying after addressing the areas for improvement.';
+      }
     }
 
-    function displayMockResults() {
-      const mockResults = {
-        position: 'Software Developer',
-        overall_score: 75,
-        category_scores: [
-          { category: 'Experience', status: 'Passed' },
-          { category: 'Background', status: 'Passed' },
-          { category: 'Frameworks', status: 'Failed' },
-          { category: 'Skills', status: 'Passed' }
-        ],
-        ai_feedback: 'You demonstrated <strong>solid technical knowledge</strong> and good communication skills. Areas for improvement include <strong>framework-specific knowledge</strong>.',
-        overall_result: 'PASS',
-        recommendation: 'You have been forwarded to the HR team for final interview.'
-      };
+    function displayFallback() {
+      document.getElementById('loadingState').style.display = 'none';
+      document.getElementById('resultsContent').style.display = 'block';
       
-      displayResults(mockResults);
+      // Show generic message
+      document.getElementById('positionName').textContent = 'Interview Completed';
+      document.getElementById('overallScore').textContent = '0';
+      document.getElementById('aiFeedback').textContent = 'Interview results are being processed. Please check back later.';
+      document.getElementById('finalResult').textContent = 'PROCESSING';
+      document.getElementById('recommendation').textContent = 'Your results will be available shortly.';
     }
   </script>
-
-  <style>
-    .position-info {
-      margin-bottom: 20px;
-      padding: 15px;
-      background: #f8f9fa;
-      border-radius: 8px;
-    }
-    
-    .position-info p {
-      margin: 5px 0;
-      font-size: 16px;
-    }
-    
-    .score-passed {
-      color: #28a745;
-      font-weight: bold;
-    }
-    
-    .score-failed {
-      color: #dc3545;
-      font-weight: bold;
-    }
-    
-    .result-pass {
-      color: #28a745;
-    }
-    
-    .result-fail {
-      color: #dc3545;
-    }
-  </style>
 </body>
 </html>
