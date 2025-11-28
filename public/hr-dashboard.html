@@ -45,9 +45,8 @@
             </select>
             <select id="filterStatus">
               <option value="">All statuses</option>
-              <option>Passed AI</option>
-              <option>AI Pending</option>
-              <option>Failed AI</option>
+              <option>Passed</option>
+              <option>Failed</option>
             </select>
           </div>
         </div>
@@ -88,6 +87,7 @@
   <!-- JOB MANAGEMENT ACTIONS -->
   <div class="job-actions">
     <button class="btn btn-primary" id="addJobBtn">+ Add Job</button>
+    <button class="btn btn-ghost" onclick="updateApplicantStatuses()">Fix Statuses</button>
   </div>
 
   <!-- JOB MANAGEMENT TABLE -->
