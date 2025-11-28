@@ -128,17 +128,19 @@ INTERVIEW FLOW:
 
 ENDING THE INTERVIEW:
 After asking ${totalRequirements} questions (one per requirement), provide your assessment:
-"Thank you for your time. Based on your responses, you have [PASSED/FAILED] this interview."
 
-If FAILED, add specific improvement advice:
-"To improve for future interviews, I recommend focusing on: [specific areas based on weak answers]. Consider studying [specific topics/technologies] and gaining hands-on experience with [specific skills]."
+If PASSED: "Thank you for your time, ${this.applicantName}. Based on your responses, you have PASSED this interview. You demonstrated strong knowledge and skills."
+
+If FAILED: Speak in a calm, gentle, and supportive tone:
+"Thank you for your time, ${this.applicantName}. I appreciate your effort today. Based on your responses, you have not met the requirements for this position at this time. However, I want to encourage you - this is an opportunity for growth. I recommend focusing on: [specific areas]. Consider studying [specific topics] and gaining hands-on experience with [specific skills]. With dedication and practice, you can definitely improve. Don't be discouraged - every interview is a learning experience."
 
 Then say: "Please click the 'End Interview' button to view your detailed results."
 
 IMPORTANT: 
+- Use EXACTLY the words "PASSED" or "FAILED" (or "not met the requirements") in your final verdict
+- When delivering a FAILED verdict, be empathetic, calm, gentle, and encouraging
 - Pronounce "C#" as "C SHARP"
-- Be concise and professional
-- Always give specific improvement advice if candidate fails
+- Always give specific, constructive improvement advice if candidate fails
 - Strictly follow the ${totalRequirements} question limit`;
   }
 
@@ -176,10 +178,10 @@ IMPORTANT:
             model: "speech-2.6-turbo",
             voice_setting: {
               voice_id: "English_Lively_Male_11",
-              speed: 1,
+              speed: 0.95,
               vol: 1,
               pitch: 0,
-              emotion: "happy"
+              emotion: "calm"
             },
             audio_setting: { sample_rate: 16000 }
           },
@@ -254,15 +256,19 @@ IMPORTANT:
 
   addToTranscript(speaker, message) {
     this.conversationTranscript.push({ speaker, message, timestamp: Date.now() });
+    console.log(`💬 ${speaker}: ${message.substring(0, 50)}...`);
     
-    if (speaker === 'AI' && (message.includes('PASSED') || message.includes('FAILED'))) {
-      this.aiVerdict = message.includes('PASSED') ? 'PASS' : 'FAIL';
-      console.log('🎯 AI Verdict captured:', this.aiVerdict);
+    const msgUpper = message.toUpperCase();
+    if (speaker === 'AI' && (msgUpper.includes('PASSED') || msgUpper.includes('FAILED') || msgUpper.includes('NOT MET THE REQUIREMENTS'))) {
+      this.aiVerdict = msgUpper.includes('PASSED') ? 'PASS' : 'FAIL';
+      console.log('🎯 AI Verdict captured:', this.aiVerdict, 'from message:', message);
     }
   }
 
   async extractInterviewResults() {
     console.log('📊 Extracting interview results...');
+    console.log('📝 Total transcript messages:', this.conversationTranscript.length);
+    console.log('🎯 Captured AI verdict:', this.aiVerdict);
     
     if (!this.jobRequirements) return null;
 
@@ -270,16 +276,22 @@ IMPORTANT:
     let aiMessage = '';
     
     if (!actualResult) {
-      const lastMessages = this.conversationTranscript.slice(-3);
+      console.log('⚠️ No verdict captured, analyzing last 5 messages...');
+      const lastMessages = this.conversationTranscript.slice(-5);
+      lastMessages.forEach(msg => console.log(`  ${msg.speaker}: ${msg.message.substring(0, 80)}`));
+      
       for (const msg of lastMessages) {
         if (msg.speaker === 'AI') {
-          if (msg.message.toLowerCase().includes('passed') || msg.message.toLowerCase().includes('pass')) {
+          const msgLower = msg.message.toLowerCase();
+          if (msgLower.includes('passed') || msgLower.includes('pass')) {
             actualResult = 'PASS';
             aiMessage = msg.message;
+            console.log('✅ Found PASS in message');
             break;
-          } else if (msg.message.toLowerCase().includes('failed') || msg.message.toLowerCase().includes('fail')) {
+          } else if (msgLower.includes('failed') || msgLower.includes('fail') || msgLower.includes('not met')) {
             actualResult = 'FAIL';
             aiMessage = msg.message;
+            console.log('❌ Found FAIL in message');
             break;
           }
         }
@@ -287,8 +299,8 @@ IMPORTANT:
     }
 
     if (!actualResult) {
-      actualResult = Math.random() > 0.6 ? 'PASS' : 'FAIL';
-      console.warn('⚠️ No AI verdict found, using fallback');
+      actualResult = 'FAIL';
+      console.warn('⚠️ No AI verdict found, defaulting to FAIL');
     }
 
     const categories = this.generateCategoryScores(actualResult);
@@ -296,7 +308,7 @@ IMPORTANT:
     const improvementTips = this.extractImprovementTips(aiMessage, actualResult);
     const feedback = this.generateResultFeedback(actualResult, overallScore, categories);
 
-    return {
+    const results = {
       applicant_id: JSON.parse(localStorage.getItem('interviewData') || '{}').applicant_id || "APP" + Date.now(),
       applicantName: this.applicantName,
       position: this.jobRequirements.role,
@@ -306,10 +318,13 @@ IMPORTANT:
       ai_feedback: feedback,
       improvement_tips: improvementTips
     };
+
+    console.log('📊 Final results:', results);
+    return results;
   }
 
   generateCategoryScores(result) {
-    const categories = ['Technical Skills', 'Communication', 'Experience', 'Problem Solving'];
+    const categories = ['Technical Skills', 'Communication', 'Experience'];
     return categories.map(cat => ({
       category: cat,
       status: result === 'PASS' ? (Math.random() > 0.3 ? 'Passed' : 'Failed') : (Math.random() > 0.7 ? 'Passed' : 'Failed')
@@ -351,29 +366,34 @@ IMPORTANT:
       const interviewData = JSON.parse(localStorage.getItem('interviewData') || '{}');
       const applicant_id = interviewData.applicant_id || results.applicant_id;
       
-      console.log('💾 Saving results for applicant:', applicant_id);
+      const payload = {
+        applicant_id: applicant_id,
+        score_overall: results.overall_score,
+        eye_contact_score: Math.floor(Math.random() * 20) + 75,
+        summary_text: results.ai_feedback,
+        improvement_tips: results.improvement_tips
+      };
+      
+      console.log('💾 Saving to database:', payload);
       
       const response = await fetch('/api/results/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          applicant_id: applicant_id,
-          score_overall: results.overall_score,
-          eye_contact_score: Math.floor(Math.random() * 30) + 70,
-          summary_text: results.ai_feedback,
-          improvement_tips: results.improvement_tips
-        })
+        body: JSON.stringify(payload)
       });
       
+      const responseData = await response.json();
+      console.log('📡 Server response:', responseData);
+      
       if (response.ok) {
-        console.log('✅ Results saved to database');
+        console.log('✅ Results saved successfully');
         return true;
       } else {
-        console.error('❌ Failed to save results:', await response.text());
+        console.error('❌ Server returned error:', responseData);
         return false;
       }
     } catch (error) {
-      console.error('❌ Error saving results:', error);
+      console.error('❌ Network error:', error);
       return false;
     }
   }

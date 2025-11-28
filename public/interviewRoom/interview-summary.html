@@ -5,16 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Interview Summary - IntervueAI</title>
   <link rel="stylesheet" href="/css/styles.css" />
-  <style>
-    .loading { text-align: center; padding: 40px; }
-    .result-pass { color: #28a745; font-weight: bold; }
-    .result-fail { color: #dc3545; font-weight: bold; }
-    .score-passed { color: #28a745; font-weight: bold; }
-    .score-failed { color: #dc3545; font-weight: bold; }
-    .position-info { margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px; }
-    .position-info p { margin: 5px 0; font-size: 16px; }
-    .improvement-section { margin-top: 20px; padding: 15px; background: #fff3cd; border-radius: 8px; border-left: 4px solid #ffc107; }
-  </style>
 </head>
 <body>
   <header class="nav">
@@ -29,39 +19,39 @@
     </div>
   </header>
 
-  <main class="shell summary-shell">
-    <div class="card summary-card">
-      <h1 class="summary-title">Interview Summary</h1>
+  <main class="shell" style="max-width: 800px;">
+    <div class="card">
+      <h1 style="font-size: 24px; text-align: center; margin-bottom: 20px;">Interview Summary</h1>
       
-      <div id="loadingState" class="loading">
+      <div id="loadingState" style="text-align: center; padding: 40px;">
         <p>Loading your interview results...</p>
       </div>
 
       <div id="resultsContent" style="display: none;">
-        <div class="position-info">
-          <p><strong>Position:</strong> <span id="positionName">-</span></p>
-          <p><strong>Overall Score:</strong> <span id="overallScore">-</span>%</p>
+        <div class="card" style="margin-bottom: 20px;">
+          <p style="margin: 8px 0;"><strong>Position:</strong> <span id="positionName">-</span></p>
+          <p style="margin: 8px 0;"><strong>Overall Score:</strong> <span id="overallScore">-</span>%</p>
         </div>
 
-        <div class="scorecard-grid" id="scorecardGrid"></div>
+        <div id="scorecardGrid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin: 20px 0;"></div>
 
-        <div class="card feedback-card">
-          <h3 class="feedback-title">AI Feedback</h3>
-          <p class="feedback-text" id="aiFeedback">-</p>
+        <div class="card" style="margin: 20px 0;">
+          <h3 style="font-size: 16px; margin-bottom: 10px;">AI Feedback</h3>
+          <p id="aiFeedback" style="color: var(--text-soft); line-height: 1.6;">-</p>
         </div>
 
-        <div id="improvementSection" class="improvement-section" style="display: none;">
-          <h3>Areas for Improvement</h3>
-          <p id="improvementTips">-</p>
+        <div id="improvementSection" class="card" style="display: none; margin: 20px 0; border-color: rgba(255, 193, 7, 0.4);">
+          <h3 style="font-size: 16px; margin-bottom: 10px; color: #ffc107;">Areas for Improvement</h3>
+          <p id="improvementTips" style="color: var(--text-soft); line-height: 1.6;">-</p>
         </div>
 
-        <div class="verdict-card">
-          <h2 class="verdict-title">Final Result: <strong id="finalResult">-</strong></h2>
-          <p class="verdict-subtitle" id="recommendation">-</p>
+        <div class="card" style="text-align: center; margin: 20px 0; padding: 24px;">
+          <h2 style="margin-bottom: 12px;">Final Result: <strong id="finalResult" style="font-size: 28px;">-</strong></h2>
+          <p id="recommendation" style="color: var(--text-soft); margin-top: 8px;">-</p>
         </div>
 
-        <div class="summary-actions">
-          <a href="/" class="btn btn-ghost summary-btn">Return to Home</a>
+        <div style="text-align: center; margin-top: 30px;">
+          <a href="/" class="btn btn-primary" style="padding: 10px 24px;">Return to Home</a>
         </div>
       </div>
     </div>
@@ -69,11 +59,12 @@
 
   <script>
     document.addEventListener('DOMContentLoaded', function() {
-      setTimeout(loadResults, 1000); // Brief delay for loading effect
+      setTimeout(loadResults, 500);
     });
 
     function loadResults() {
       const results = JSON.parse(localStorage.getItem('interviewResults') || '{}');
+      console.log('📊 Loading results:', results);
       
       if (Object.keys(results).length === 0) {
         displayFallback();
@@ -87,51 +78,46 @@
       document.getElementById('loadingState').style.display = 'none';
       document.getElementById('resultsContent').style.display = 'block';
       
-      // Basic info
       document.getElementById('positionName').textContent = results.position || 'Unknown Position';
       document.getElementById('overallScore').textContent = results.overall_score || 0;
       
-      // Category scores
       const grid = document.getElementById('scorecardGrid');
       grid.innerHTML = '';
       
       if (results.category_scores && results.category_scores.length > 0) {
-        for (let i = 0; i < results.category_scores.length; i += 2) {
+        results.category_scores.forEach(cat => {
           const card = document.createElement('div');
-          card.className = 'card scorecard-item';
+          card.className = 'card';
+          card.style.textAlign = 'center';
+          card.style.padding = '16px';
           
-          const cat1 = results.category_scores[i];
-          const cat2 = results.category_scores[i + 1];
-          
+          const statusClass = cat.status === 'Passed' ? 'badge-pass' : 'badge-fail';
           card.innerHTML = `
-            <p><strong>${cat1.category}:</strong> <span class="score-${cat1.status.toLowerCase()}">${cat1.status}</span></p>
-            ${cat2 ? `<p><strong>${cat2.category}:</strong> <span class="score-${cat2.status.toLowerCase()}">${cat2.status}</span></p>` : ''}
+            <h4 style="margin-bottom: 10px; font-size: 14px;">${cat.category}</h4>
+            <span class="badge ${statusClass}">${cat.status}</span>
           `;
           
           grid.appendChild(card);
-        }
+        });
       }
       
-      // AI feedback
       document.getElementById('aiFeedback').textContent = results.ai_feedback || 'No feedback available.';
       
-      // Improvement tips (show only if failed)
       if (results.overall_result === 'FAIL' && results.improvement_tips) {
         document.getElementById('improvementSection').style.display = 'block';
         document.getElementById('improvementTips').textContent = results.improvement_tips;
       }
       
-      // Final result
       const resultElement = document.getElementById('finalResult');
       const recommendationElement = document.getElementById('recommendation');
       
       if (results.overall_result === 'PASS') {
         resultElement.textContent = 'PASSED';
-        resultElement.className = 'result-pass';
+        resultElement.style.color = '#4ade80';
         recommendationElement.textContent = 'Congratulations! You have been recommended for the next round.';
       } else {
         resultElement.textContent = 'NEEDS IMPROVEMENT';
-        resultElement.className = 'result-fail';
+        resultElement.style.color = '#f97373';
         recommendationElement.textContent = 'Please review the feedback and consider reapplying after addressing the areas for improvement.';
       }
     }
@@ -140,7 +126,6 @@
       document.getElementById('loadingState').style.display = 'none';
       document.getElementById('resultsContent').style.display = 'block';
       
-      // Show generic message
       document.getElementById('positionName').textContent = 'Interview Completed';
       document.getElementById('overallScore').textContent = '0';
       document.getElementById('aiFeedback').textContent = 'Interview results are being processed. Please check back later.';
