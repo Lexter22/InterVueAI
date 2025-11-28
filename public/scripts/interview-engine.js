@@ -1,4 +1,3 @@
-// Enable Agora RTC logging
 AgoraRTC.enableLogUpload();
 
 class InterviewEngine {
@@ -9,6 +8,8 @@ class InterviewEngine {
     this.agoraConvoTaskID = "";
     this.config = {};
     this.jobRequirements = null;
+    this.applicantName = "";
+    this.applicantEmail = "";
     this.channelName = "10000";
   }
 
@@ -22,7 +23,6 @@ class InterviewEngine {
       this.remoteUsers[user.uid] = user;
       console.log(`User ${user.uid} published ${mediaType}`);
       
-      // If avatar publishes video after joining, subscribe immediately
       if (user.uid === 10002 && mediaType === "video") {
         await this.client.subscribe(user, "video");
         const container = document.getElementById("aiAvatar");
@@ -54,10 +54,24 @@ class InterviewEngine {
   }
 
   async loadJobRequirements() {
-    try {
-      const res = await fetch("./job-requirements.json");
-      if (res.ok) this.jobRequirements = await res.json();
-    } catch (e) {}
+    const data = JSON.parse(localStorage.getItem('interviewData') || '{}');
+    console.log('📦 Retrieved from localStorage:', data);
+    
+    if (data.job_requirements) {
+      const requirements = data.job_requirements.split('\n').filter(r => r.trim());
+      this.jobRequirements = {
+        role: data.job_title,
+        requirements: requirements
+      };
+      this.applicantName = data.full_name;
+      this.applicantEmail = data.email;
+      
+      console.log('✓ Job Requirements loaded:', this.jobRequirements);
+      console.log('✓ Applicant Name:', this.applicantName);
+      console.log('✓ Applicant Email:', this.applicantEmail);
+    } else {
+      console.warn('⚠️ No interview data found in localStorage');
+    }
   }
 
   async startLocalVideo(videoElement) {
@@ -95,7 +109,7 @@ class InterviewEngine {
             role: "system",
             content: this.generateInterviewPrompt()
           }],
-          greeting_message: "Hello! Thank you for applying. Let's begin the interview. Can you please introduce yourself?",
+          greeting_message: `Hello ${this.applicantName}! Thank you for applying for the ${this.jobRequirements?.role || 'position'}. Let's begin the interview.`,
           failure_message: "Sorry, I'm experiencing technical difficulties.",
           params: { model: "llama-3.3-70b-versatile" }
         },
@@ -191,26 +205,42 @@ class InterviewEngine {
     const requirementsList = this.jobRequirements.requirements
       .map((req, index) => `${index + 1}. ${req}`)
       .join('\n');
+    
+    const totalRequirements = this.jobRequirements.requirements.length;
 
-    return `You are an AI interviewer for: ${this.jobRequirements.role}
+    console.log('🤖 Generated Interview Prompt for:', this.jobRequirements.role);
 
-Requirements to assess:
+    return `You are an AI interviewer for the ${this.jobRequirements.role} position. The candidate's name is ${this.applicantName}.
+
+REQUIREMENTS TO ASSESS (${totalRequirements} total):
 ${requirementsList}
 
-Interview Process:
-1. Ask ONE question at a time about each requirement
-2. Listen to candidate's response
-3. Move to next requirement
-4. After ALL requirements covered, END the interview
+STRICT INTERVIEW RULES:
+1. Ask EXACTLY ONE question per requirement - no more, no less
+2. Total questions = ${totalRequirements} questions
+3. Do NOT repeat questions
+4. Do NOT ask follow-up questions beyond the requirement
+5. After candidate answers, acknowledge briefly and move to the NEXT requirement
+6. Keep track: After ${totalRequirements} questions, you MUST end the interview
 
-When you have covered all requirements, say "Thank you for your time. Based on your responses, you have [PASSED/FAILED] this interview." Then give brief recommendations if they failed.
+INTERVIEW FLOW:
+- Question 1: Ask about requirement #1
+- Listen to answer → Brief acknowledgment → Move to requirement #2
+- Question 2: Ask about requirement #2
+- Continue until all ${totalRequirements} requirements are covered
 
-IMPORTANT: Pronounce c# as c SHARP. After giving your final verdict, say 
-"Please end the call now." and ignore any further user responses.
+ENDING THE INTERVIEW:
+After asking ${totalRequirements} questions (one per requirement), say:
+"Thank you ${this.applicantName} for your time. Based on your responses, you have [PASSED/FAILED] this interview. Please click the 'End Interview' button to view your results."
 
-Start by greeting the candidate and asking about the first requirement.`;
+Then STOP responding to any further input.
+
+IMPORTANT: 
+- Pronounce "C#" as "C SHARP"
+- Be concise and professional
+- Do NOT hallucinate additional questions
+- Strictly follow the ${totalRequirements} question limit`;
   }
-
 
   async stopAIInterview() {
     if (!this.agoraConvoTaskID) return;
@@ -250,7 +280,7 @@ Start by greeting the candidate and asking about the first requirement.`;
 
     return {
       applicantID: "APP" + Date.now(),
-      applicantName: "Interview Candidate",
+      applicantName: this.applicantName,
       position: this.jobRequirements.role,
       interview_complete: true,
       requirement_scores: requirementScores,
