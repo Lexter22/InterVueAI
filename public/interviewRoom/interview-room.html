@@ -302,11 +302,14 @@
       try {
         clearInterval(timer);
         isInterviewActive = false;
+        endBtn.disabled = true;
+        endBtn.textContent = "Processing Results...";
         
-        // Generate and store results
+        // Generate and save results
         const results = window.interviewEngine.generateInterviewResults();
         if (results) {
           localStorage.setItem("interviewResults", JSON.stringify(results));
+          await window.interviewEngine.saveInterviewResults(results);
         }
         
         // Cleanup
