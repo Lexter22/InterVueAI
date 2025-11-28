@@ -104,8 +104,8 @@ app.post("/api/application/start", async (req, res) => {
     const applicant_id = uuidv4();
 
     await db.execute(
-      "INSERT INTO applicants (applicant_id, job_id, full_name, email, mobile_number) VALUES (?, ?, ?, ?, ?)",
-      [applicant_id, job_id, full_name, email, mobile_number]
+      "INSERT INTO applicants (applicant_id, job_id, full_name, email, mobile_number, status) VALUES (?, ?, ?, ?, ?, ?)",
+      [applicant_id, job_id, full_name, email, mobile_number, "Failed"]
     );
 
     res.json({ success: true, token: applicant_id });
@@ -170,6 +170,13 @@ app.post("/api/results/submit", async (req, res) => {
         summary_text,
         improvement_tips,
       ]
+    );
+
+    // Update applicant status based on score
+    const status = score_overall >= 70 ? "Passed" : "Failed";
+    await db.execute(
+      "UPDATE applicants SET status = ? WHERE applicant_id = ?",
+      [status, applicant_id]
     );
 
     res.json({ success: true });
@@ -282,6 +289,23 @@ app.put("/api/hr/applicants/:id/status", async (req, res) => {
       [status, id]
     );
 
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/hr/update-statuses - Update all applicant statuses based on scores
+app.put("/api/hr/update-statuses", async (req, res) => {
+  try {
+    await db.execute(`
+      UPDATE applicants a 
+      JOIN interview_results r ON a.applicant_id = r.applicant_id 
+      SET a.status = CASE 
+        WHEN r.score_overall >= 70 THEN 'Passed' 
+        ELSE 'Failed' 
+      END
+    `);
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });

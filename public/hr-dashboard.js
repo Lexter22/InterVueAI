@@ -13,6 +13,7 @@ async function loadApplicants() {
         const result = await response.json();
         
         if (result.success) {
+            console.log('Raw applicant data:', result.data);
             displayApplicants(result.data);
         }
     } catch (error) {
@@ -25,7 +26,8 @@ function displayApplicants(applicants) {
     tbody.innerHTML = '';
     
     applicants.forEach((applicant, index) => {
-        const status = getStatusBadge(applicant.score_overall);
+        console.log('Applicant data:', { score: applicant.score_overall, status: applicant.status });
+        const status = getStatusBadge(applicant.score_overall, applicant.status);
         const row = `
             <tr>
                 <td>APP-${String(index + 1).padStart(3, '0')}</td>
@@ -43,10 +45,10 @@ function displayApplicants(applicants) {
     });
 }
 
-function getStatusBadge(score) {
-    if (!score) return '<span class="badge badge-pending">AI Pending</span>';
-    if (score >= 70) return '<span class="badge badge-pass">Passed AI</span>';
-    return '<span class="badge badge-fail">Failed AI</span>';
+function getStatusBadge(score, status) {
+    if (status === 'Passed') return '<span class="badge badge-pass">Passed</span>';
+    if (status === 'Failed') return '<span class="badge badge-fail">Failed</span>';
+    return '<span class="badge badge-fail">Failed</span>';
 }
 
 async function viewApplicant(applicantId) {
@@ -264,6 +266,25 @@ async function deleteJob(jobId) {
         if (result.success) {
             await loadJobs();
             alert('Job deleted successfully!');
+        } else {
+            alert('Error: ' + result.error);
+        }
+    } catch (error) {
+        alert('Network error: ' + error.message);
+    }
+}
+
+async function updateApplicantStatuses() {
+    try {
+        const response = await fetch('/api/hr/update-statuses', {
+            method: 'PUT'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            await loadApplicants();
+            alert('Applicant statuses updated successfully!');
         } else {
             alert('Error: ' + result.error);
         }
